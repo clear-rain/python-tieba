@@ -1,0 +1,261 @@
+
+import requests
+import re
+from bs4 import BeautifulSoup
+import os
+
+def gethtml(url):
+    try:
+        hd = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=hd)
+        r.raise_for_status()
+        r.encoding = 'utf-8'
+        #print(r.text)
+        return r.text
+    except:
+        print('error')
+
+
+def getinfo(html,alist):
+    soup = BeautifulSoup(html, "html.parser")
+    #print(soup)
+    for body in soup.find_all('li', attrs={'class': 'j_thread_list clearfix thread_item_box'}):
+        #print(body)
+        timee = body.find_all('span', attrs={'class': 'pull-right is_show_create_time'})[0]
+        #print(timee)
+        time = timee.string
+        #print(time)
+        titlee = body.find_all('a', attrs={'rel': 'noreferrer', 'target': '_blank'})[0]
+        #print(titlee)
+        title0 = titlee.attrs["title"]
+        #print(title)
+        alist.append([time, title0])
+    return alist
+    #print(soup.prettify())
+
+
+def showinfo(alist):
+    #file = open("neirong.txt", "r+", encoding="unicode_escape")#出现了UnicodeDecodeError: 'utf8' codec can't decode byte 0xc4 in position 0问题，将文件格式改为"unicode_escape"后解决，可能是gbk与utf-8没有转化
+                            #print(alist)
+    if not alist:#在判断列表是否为空时不能用list[0]==0,而应该用if alist:（存在值为真）
+        return 0
+    for i in range(len(alist)):
+        tem = '{0:<3}{1:<8}:{2:<50}'
+        #tem = '{0:<6}:{1:<30}'
+        cont = (tem.format(i, alist[i][0], alist[i][1]))
+        print(cont)
+                            #print(alist[i])
+        #file.write(alist[i][0])
+        #file.write(alist[i][1])
+    #file.seek(0, 0)
+    #if len(file.read().rstrip()) == 0:
+        #return 0
+    #file.seek(0, 0)
+    #file.readlines()
+    #file.close()
+    return 1
+
+
+def getnewinfo(html, alist):
+    soup = BeautifulSoup(html, "html.parser")
+    #print(soup.prettify())
+    for comment in soup.find_all('div', attrs={'class': re.compile('d_post_content_main.*')}):#字典的值有时与html上的不一样，可以用soup.prettify看一看检查；在不同贴吧中遇到了含有该元素的不同值，用re.compile得以兼容
+        slist = [0, 0]
+        #d_post_content_main
+        #d_post_content j_d_post_content
+        #print(type(comment.string))
+        count = 0
+        regular_content = comment.find('div', attrs={'class': re.compile('d_post_content j_d_post_content')})
+        #print(regular_content)
+        if isinstance(regular_content.string, str):#楼中无图片有正常字
+            slist[0] = regular_content.string.strip()
+            alist.append(slist)
+            #print(slist[0])
+            count = 1
+
+        special_content = comment.find('div', attrs={'class': re.compile('post_bubble_middle_inner')})
+        if special_content:#楼中无图片有彩色字
+            if isinstance(special_content.string, str):
+                slist[0] = special_content.string.strip()
+                alist.append(slist)
+                #print(special_content)
+                #print(slist[0])
+                count = 1
+
+        if count == 0:#楼中带图片
+            pictureinside_content = comment.find('div', attrs={'class': re.compile('d_post_content j_d_post_content')})
+            #print(pictureinside_content)
+            imgflag = pictureinside_content.find('img')
+            #print(imgflag)
+            imgurl = imgflag['src']
+            #print(imgurl)
+            slist[1] = imgurl
+
+            method = re.compile('style="display:;">.*<img')
+            content = str(pictureinside_content)
+            x = method.findall(content)
+            x = x[0]
+            #print(x)
+            method = re.compile('>.*?<img')
+            content = x
+            x = method.findall(content)
+            #print(x)
+            x = x[0]
+            #print(x)
+            x = x[:-4]
+            #print(x)
+            i=0
+            x = x.strip()
+            x = x.rstrip('<br>')
+            x = x.rstrip('<br/>')
+            x = x.rstrip('<br>')
+            x = x.rstrip('<br/>')
+            #print(x)
+            x = x.strip()
+            l = len(x)-1
+            for i in range(l+1):
+                #print(l-i)
+                if x[l-i] == '>':
+                    #print(l-i)
+                    x = x[l-i+1:]
+                    #print(x)
+                    break
+            x = x.strip()
+            #print(x)
+
+
+
+            if x!='':
+                slist[0] = x
+            alist.append(slist)
+
+
+
+
+
+        #在有图片的楼中，原div注释即string部分会出现img tag与br换行导致文本不再为string
+        #在有图片且有特殊字的楼中会使原来的目标语段中增加内容，使得正则不能得到想要的结果
+        #最小匹配并不能从后往前检索，因此只能用循环来查找
+        #elif isinstance(middle in comment.find())
+        #print(alist)
+    return alist
+
+def getnewurl(html, numm):
+    num = int(numm)+1
+    soup = BeautifulSoup(html, "html.parser")
+    test = soup.find_all('li', attrs={'class': 'j_thread_list clearfix thread_item_box', 'data-floor': "{}".format(num)})
+    if not test:
+        return 0
+    #print(test)
+    content0 = soup.find_all('li', attrs={'class': 'j_thread_list clearfix thread_item_box', 'data-floor': "{}".format(num)})[0]
+    #print(content0)
+    content = str(content0)#str()
+    #print("cn", content)
+    numbering0 = re.findall(r'data-tid=.{12}', content)[0][10:-1]#[0]
+    #print("n0", numbering0)
+    numbering = str(numbering0)#str()
+    newurl='https://tieba.baidu.com/p/' + numbering
+    #print(newurl)
+    return newurl
+
+
+def shownewinfo(alist):
+    #print(alist)
+    for i in range(len(alist)):
+        print(i+1, "楼:")
+        if alist[i][1] == 0:
+            print(alist[i][0])
+        elif alist[i][1]!=0:
+            if alist[i][0]!=0:
+                print(alist[i][0])
+            print(alist[i][1])
+    print("图片用网址表示")
+
+
+def chonglang(data, url, count):
+        html = gethtml(url)
+        #print(html)
+        blist = []
+        clist = getinfo(html, blist)
+        s = showinfo(clist)
+        if(s==0):
+            return 0
+        #try:
+        blist=[]
+        dlist=[]
+
+        charge1 = str(input("要进贴吗(第几贴/no):"))
+        if charge1 != 'no' and charge1.lower() != 'n':
+            try:
+                int(charge1)
+            except:
+                print("请输入正确贴数！")
+                chonglang(data, url, count)
+            #print("start")
+            int(charge1)
+            newurl = getnewurl(html, charge1)
+            if newurl == 0:
+                return 1
+            elif (len(newurl)<30):
+                print("贴数过大")
+                chonglang(data, url, count)
+            html = gethtml(newurl)
+            #print(html)
+            dlist = getnewinfo(html, blist)
+            #print(dlist)
+            shownewinfo(dlist)
+
+        if cyclepart(data, url, count) == 1:
+            cyclepart(data, url, count)
+        else:  return 2
+
+def cyclepart(data, url, count):
+    charge2 = str(input("还逛吧吗？(yes/no):"))
+    if (charge2.lower() == 'yes' or charge2.lower() == 'y'):
+        charge3 = str(input("before page/this page/next page(b/t/n)"))
+        if charge3 == 'n':
+            count += 50
+            page = str(count)
+            url1 = 'https://tieba.baidu.com/f?kw=' + data + '&ie=utf-8&pn=' + page
+            chonglang(data, url1, count)
+        elif charge3 == 't':
+            chonglang(data, url, count)
+        elif charge3 == 'b':
+            if count == 0:
+                print('already first page!')
+                return 1
+            else:
+                count -= 50
+                page = str(count)
+                url1 = 'https://tieba.baidu.com/f?kw=' + data + '&ie=utf-8&pn=' + page
+                chonglang(data, url1, count)
+        else:
+            print('wrong input!(b/t/n)')
+            return 1
+    elif (charge2.lower() != 'no' and charge2.lower() != 'n'):
+        print("输入yes或no!")
+        return 1
+    elif (charge2.lower() == 'no' or charge2.lower() == 'n'):
+        print("人生有梦，各自精彩。网上冲浪，有缘再来。")
+        return 0
+
+def main():
+    count1=input("网上冲浪(yes/no):")
+    if(count1.lower()=='yes' or count1.lower()=='y'):
+        count = 0
+        data = input("今天逛哪个吧？")
+        url = 'https://tieba.baidu.com/f?ie=utf-8&kw=' + data + '&fr=search'
+        #print(url)
+        c = chonglang(data, url, count)
+        if (c==0):
+            print("没有这个吧")
+            main()
+        if (c==1):
+            print("没有这个贴")
+            main()
+    elif(count1.lower()=='no' or count1.lower()=='n'):
+        print("那随便了.")
+    else:
+        print("请输入yes或no！")
+        main()
+main ()
